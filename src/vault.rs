@@ -215,19 +215,9 @@ impl Client {
             .or_else(|| std::env::var(env).ok())
     }
 
-    /// Returns the Vault Token
-    pub fn token(&self) -> &str {
-        &self.token
-    }
-
     /// Returns the Vault address
     pub fn address(&self) -> &str {
         &self.address
-    }
-
-    /// Returns the HTTP Client
-    pub fn http_client(&self) -> &HttpClient {
-        &self.client
     }
 
     fn execute_request<T>(client: &HttpClient, request: reqwest::Request) -> Result<T, Error>
