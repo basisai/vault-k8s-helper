@@ -43,6 +43,12 @@ ARGS:
 
 ```
 
+### Example output
+
+```json
+{ "expires_at_seconds": "2019-03-01T08:09:32Z", "token": "ya29.c.<REDACTED>" }
+```
+
 ## Tests
 
 You have to use a real Vault server with a configured
@@ -52,3 +58,40 @@ You have to use a real Vault server with a configured
 Provide the usual environemnt variables plus:
 
 - `GCP_PATH` for the path to read the secrets from
+
+## Kube Config
+
+The following template for Kube Config would work well:
+
+```yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: <K8S-CA>
+    server: <K8S-URL>
+  name: deploy
+contexts:
+- context:
+    cluster: deploy
+    namespace: span-staging
+    user: deploy
+  name: deploy
+current-context: deploy
+kind: Config
+preferences: {}
+users:
+- name: deploy
+  user:
+    auth-provider:
+      config:
+        cmd-args: >-
+            --vault-token-file=/path/to/vault/token
+            --vault-address=https://vault.service.consul:8200
+            --vault-ca-cert=/path/to/cert
+            gcp/token/roleset
+
+        cmd-path: /bin/path/to/vault-gke-helper
+        expiry-key: '{.expires_at_seconds}'
+        token-key: '{.token}'
+      name: gcp
+```
