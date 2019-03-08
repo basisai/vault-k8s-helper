@@ -55,7 +55,7 @@ You have to use a real Vault server with a configured
 [Google Cloud Secrets Engine](https://www.vaultproject.io/docs/secrets/gcp/index.html)
 [access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens).
 
-Provide the usual environemnt variables plus:
+Provide the usual environment variables plus:
 
 - `GCP_PATH` for the path to read the secrets from
 
