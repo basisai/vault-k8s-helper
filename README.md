@@ -73,7 +73,6 @@ clusters:
 contexts:
 - context:
     cluster: deploy
-    namespace: span-staging
     user: deploy
   name: deploy
 current-context: deploy
