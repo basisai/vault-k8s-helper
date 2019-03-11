@@ -9,6 +9,7 @@ use std::io::Read as _;
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
+use log::debug;
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 
@@ -148,7 +149,8 @@ fn main() -> Result<(), Error> {
     let address = args.value_of("vault_address");
     let ca_cert = args.value_of("vault_ca_cert");
 
-    let client = vault::Client::new(token, address, ca_cert, false)?;
+    let client = vault::Client::new(address, token, ca_cert, false)?;
+    debug!("Vault Client: {:#?}", client);
 
     let gcp_access_token = read_gcp_access_token(
         &client,
