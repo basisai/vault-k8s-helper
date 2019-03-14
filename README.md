@@ -2,6 +2,15 @@
 
 An authentication provider for GKE that reads access tokens from Vault.
 
+## Install
+
+Get prebuilt binary from release page
+
+```bash
+# Make it executable
+chmod +x vault-gke-helper
+```
+
 ## Usage
 
 You have to configure Vault's
