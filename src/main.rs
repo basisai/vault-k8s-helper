@@ -9,8 +9,9 @@ use std::io::Write;
 use std::str::FromStr;
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
-use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
+use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, ArgMatches};
 use log::{debug, info};
+use rusoto_core::credential::AwsCredentials;
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 use vault::secrets::Aws;
@@ -103,7 +104,7 @@ fn read_aws_credentials<S: AsRef<str>>(
     client: &Client,
     path: S,
     request: &vault::secrets::aws::CredentialsRequest,
-) -> Result<vault::secrets::aws::Credentials, Error> {
+) -> Result<AwsCredentials, Error> {
     let path_parts: Vec<_> = path.as_ref().split('/').collect();
     if path_parts.len() != 3 {
         Err(Error::InvalidVaultPath)?;
@@ -115,12 +116,36 @@ fn read_aws_credentials<S: AsRef<str>>(
     let mount_point = path_parts[0];
     let role = path_parts[2];
 
-    Ok(Aws::generate_credentials(
-        &client,
-        mount_point,
-        role,
-        request,
-    )?)
+    let creds = Aws::generate_credentials(&client, mount_point, role, request)?;
+    Ok(AwsCredentials::new(
+        creds.access_key,
+        creds.secret_key,
+        creds.security_token,
+        None,
+    ))
+}
+
+fn get_eks_token(
+    credentials: &AwsCredentials,
+    cluster: &str,
+    region: Option<&str>,
+    expires_in: Option<&str>,
+) -> Result<String, Error> {
+    let region: Option<rusoto_core::region::Region> = match region {
+        Some(r) => Some(r.parse()?),
+        None => None,
+    };
+    let expiry = match expires_in {
+        Some(expiry) => Some(std::time::Duration::from_secs(expiry.parse()?)),
+        None => None,
+    };
+    let headers = [("x-k8s-aws-id", cluster)].iter().cloned().collect();
+
+    let mut buffer = "k8s-aws-v1.".to_string();
+
+    let url = aws_auth::client::presigned_url(credentials, region, headers, expiry.as_ref());
+    base64::encode_config_buf(&url, base64::URL_SAFE_NO_PAD, &mut buffer);
+    Ok(buffer)
 }
 
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
@@ -194,6 +219,27 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("eks_expiry")
+                .long("--eks-expiry")
+                .help(
+                    "Specifies the Expiry duration in number of seconds for the Kubernetes Token.",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("eks_cluster")
+                .long("--eks-cluster")
+                .help("Name of the EKS cluster. Required if type is `eks`")
+                .takes_value(true)
+                .required_if("type", "eks"),
+        )
+        .arg(
+            Arg::with_name("eks_region")
+                .long("--eks-region")
+                .help("Region of AWS to use. Defaults to the Global Endpoint")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("type")
                 .help("Type of credentials to read")
                 .takes_value(true)
@@ -208,6 +254,11 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .index(2)
                 .required(true),
         )
+}
+
+fn required_arg_value<'a>(args: &'a ArgMatches<'a>, param: &str) -> &'a str {
+    args.value_of(param)
+        .expect("required args to be handled by clap")
 }
 
 fn get_writer(path: &str) -> Result<Box<Write>, Error> {
@@ -227,11 +278,9 @@ fn main() -> Result<(), Error> {
     let parser = make_parser();
     let args = parser.get_matches();
 
-    let credential_type: CredentialType = CredentialType::from_str(
-        args.value_of("type")
-            .expect("required args to be handled by clap"),
-    )
-    .expect("invalid values to be validated by clap");
+    let credential_type: CredentialType =
+        CredentialType::from_str(required_arg_value(&args, "type"))
+            .expect("invalid values to be validated by clap");
     let token = if let Some(path) = args.value_of("vault_token_file") {
         let file = read_file(path)?;
         let token = String::from_utf8(file)?;
@@ -241,12 +290,8 @@ fn main() -> Result<(), Error> {
     };
     let address = args.value_of("vault_address");
     let ca_cert = args.value_of("vault_ca_cert");
-    let path = args
-        .value_of("path")
-        .expect("required args to be handled by clap");
-    let output = args
-        .value_of("output")
-        .expect("default value to be provided by clap");
+    let path = required_arg_value(&args, "path");
+    let output = required_arg_value(&args, "output");
 
     let client = Client::new(address, token, ca_cert, false)?;
     debug!("Vault Client: {:#?}", client);
@@ -264,7 +309,12 @@ fn main() -> Result<(), Error> {
                 ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
             };
             let aws_credentials = read_aws_credentials(&client, path, &request)?;
-            serde_json::to_string_pretty(&aws_credentials)?
+            get_eks_token(
+                &aws_credentials,
+                required_arg_value(&args, "eks_cluster"),
+                args.value_of("eks_region"),
+                args.value_of("eks_expiry"),
+            )?
         }
     };
 

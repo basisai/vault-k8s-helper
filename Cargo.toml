@@ -5,13 +5,16 @@ authors = ["Yong Wen Chua <lawliet89@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+aws_auth = { git = "https://github.com/lawliet89/aws-auth-payload", package = "aws-auth-payload", rev = "763babe2a5a257dc37060cb450c0b23a13bd4fdf" }
+base64 = "0.10.1"
 clap = "2.33.0"
 chrono = "0.4.6"
 env_logger = "0.6.1"
 failure = { version = "0.1.5", features=["backtrace"] }
 reqwest = "0.9.17"
+rusoto_core = "0.39.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 url = "1.7.2"
-vault = { git = "https://github.com/lawliet89/vault-rs", package = "vault-rs", rev = "543e7731eaebebebb477483b7079239cd7d8b1ae" }
+vault = { git = "https://github.com/lawliet89/vault-rs", package = "vault-rs", rev = "416d4f0fa704af36f5116ebd8b8d37e483658922" }

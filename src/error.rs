@@ -32,6 +32,8 @@ pub enum Error {
     InvalidCredentialType,
     #[fail(display = "Vault credentials path is invalid")]
     InvalidVaultPath,
+    #[fail(display = "Invalid AWS Region: {}", _0)]
+    InvalidAwsRegion(#[cause] rusoto_core::region::ParseRegionError),
 }
 
 impl From<reqwest::Error> for Error {
@@ -79,5 +81,11 @@ impl From<std::string::FromUtf8Error> for Error {
 impl From<vault::Error> for Error {
     fn from(error: vault::Error) -> Self {
         Error::VaultError(error)
+    }
+}
+
+impl From<rusoto_core::region::ParseRegionError> for Error {
+    fn from(error: rusoto_core::region::ParseRegionError) -> Self {
+        Error::InvalidAwsRegion(error)
     }
 }
