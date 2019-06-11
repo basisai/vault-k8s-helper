@@ -1,5 +1,4 @@
 mod error;
-mod vault;
 pub use error::Error;
 
 use std::borrow::Cow;
@@ -12,6 +11,7 @@ use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
 use log::debug;
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
+use vault::{self, Client, Vault};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 struct GcpAccessToken {
@@ -70,15 +70,12 @@ fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
 }
 
 fn read_gcp_access_token<S: AsRef<str>>(
-    client: &vault::Client,
+    client: &Client,
     path: S,
 ) -> Result<GcpAccessToken, Error> {
-    let response = client.read(path.as_ref())?;
-    let data = response
-        .ok()?
-        .data
-        .ok_or_else(|| Error::VaultError("Missing data".to_string()))?;
-    Ok(serde_json::from_value(data)?)
+    let response = client.get(path.as_ref())?;
+    let data = response.data()?;
+    Ok(data)
 }
 
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
@@ -149,7 +146,7 @@ fn main() -> Result<(), Error> {
     let address = args.value_of("vault_address");
     let ca_cert = args.value_of("vault_ca_cert");
 
-    let client = vault::Client::new(address, token, ca_cert, false)?;
+    let client = Client::new(address, token, ca_cert, false)?;
     debug!("Vault Client: {:#?}", client);
 
     let gcp_access_token = read_gcp_access_token(
@@ -168,13 +165,23 @@ mod tests {
 
     use std::env;
 
+    pub(crate) fn vault_client() -> Client {
+        Client::from_environment::<&str, &str, &str>(None, None, None).unwrap()
+    }
+
+    #[test]
+    fn can_read_self_capabilities() {
+        let client = vault_client();
+        client.get("/auth/token/lookup-self").unwrap();
+    }
+
     fn path() -> String {
         env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
     }
 
     #[test]
     fn can_read_gcp_secrets() {
-        let client = vault::tests::vault_client();
+        let client = vault_client();
         read_gcp_access_token(&client, path()).unwrap();
     }
 }

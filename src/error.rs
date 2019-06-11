@@ -12,9 +12,6 @@ pub enum Error {
     /// Errors related to URL parsing
     #[fail(display = "Error Parsing URL: {}", _0)]
     UrlParseError(#[cause] url::ParseError),
-    /// Response from Vault was unexpected
-    #[fail(display = "Unexpected response from Vault: {}", _0)]
-    InvalidVaultResponse(String),
     /// Errors parsing Numbers
     #[fail(display = "Error parsing integer: {}", _0)]
     ParseIntError(#[cause] std::num::ParseIntError),
@@ -30,7 +27,7 @@ pub enum Error {
     #[fail(display = "Error converting bytes to UTF-8: {}", _0)]
     Utf8Error(#[cause] std::string::FromUtf8Error),
     #[fail(display = "Vault Error: {}", _0)]
-    VaultError(String),
+    VaultError(#[cause] vault::Error),
 }
 
 impl From<reqwest::Error> for Error {
@@ -72,5 +69,11 @@ impl From<std::io::Error> for Error {
 impl From<std::string::FromUtf8Error> for Error {
     fn from(error: std::string::FromUtf8Error) -> Self {
         Error::Utf8Error(error)
+    }
+}
+
+impl From<vault::Error> for Error {
+    fn from(error: vault::Error) -> Self {
+        Error::VaultError(error)
     }
 }
