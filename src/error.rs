@@ -28,6 +28,8 @@ pub enum Error {
     Utf8Error(#[cause] std::string::FromUtf8Error),
     #[fail(display = "Vault Error: {}", _0)]
     VaultError(#[cause] vault::Error),
+    #[fail(display = "Invalid Credential Type")]
+    InvalidCredentialType,
 }
 
 impl From<reqwest::Error> for Error {

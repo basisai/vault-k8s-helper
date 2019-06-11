@@ -1,6 +1,7 @@
-# GKE Helper
+# Vault Kubernetes Helper
 
-An authentication provider for GKE that reads access tokens from Vault.
+An authentication provider for Kubernetes that reads access tokens from Vault for
+Google Kubernetes Engine (GKE) or Elastic Kubernetes Service (EKS).
 
 ## Install
 
@@ -8,15 +9,23 @@ Get prebuilt binary from release page
 
 ```bash
 # Make it executable
-chmod +x vault-gke-helper
+chmod +x vault-k8s-helper
 ```
 
 ## Usage
+
+### GKE
 
 You have to configure Vault's
 [Google Cloud Secrets Engine](https://www.vaultproject.io/docs/secrets/gcp/index.html) first with
 an appropriate
 [access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens).
+
+### AWS
+
+You have to configure Vault's
+[AWS Secrets Engine](https://www.vaultproject.io/docs/secrets/aws/index.html)
+with an appropriate role. Any role type should work.
 
 ```text
 Read Google Cloud Platform access token from Vault
