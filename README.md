@@ -28,10 +28,10 @@ You have to configure Vault's
 with an appropriate role. Any role type should work.
 
 ```text
-Read Google Cloud Platform access token from Vault
+Read access tokens from Vault to authenticate with Kubernetes
 
 USAGE:
-    vault-gke-helper [OPTIONS] <path>
+    vault-k8s-helper [OPTIONS] <type> <path>
 
 FLAGS:
     -h, --help
@@ -42,6 +42,15 @@ FLAGS:
 
 
 OPTIONS:
+        --eks-role-arn <eks_role_arn>
+            The ARN of the role to assume if the AWS Secrets Engine role is configured with multiple roles
+
+        --eks-ttl <eks_ttl>
+            Specifies the TTL for the use of the STS token.
+
+        --output <output>
+            Change to path to output the credentials to. Defaults to `-` which is stdout [default: -]
+
         --vault-address <vault_address>
             Specifies the Vault Address to connect to. Include the scheme and port. Can be provided by the `VAULT_ADDR`
             environment variable as well
@@ -56,6 +65,9 @@ OPTIONS:
 
 
 ARGS:
+    <type>
+            Type of credentials to read [possible values: gke, eks]
+
     <path>
             Path to read from Vault
 
@@ -67,6 +79,12 @@ ARGS:
 
 ```json
 { "token_expiry": "2019-03-01T08:09:32Z", "token": "ya29.c.<REDACTED>" }
+```
+
+#### EKS
+
+```json
+
 ```
 
 ## Tests

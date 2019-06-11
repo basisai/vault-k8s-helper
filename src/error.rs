@@ -30,6 +30,8 @@ pub enum Error {
     VaultError(#[cause] vault::Error),
     #[fail(display = "Invalid Credential Type")]
     InvalidCredentialType,
+    #[fail(display = "Vault credentials path is invalid")]
+    InvalidVaultPath,
 }
 
 impl From<reqwest::Error> for Error {

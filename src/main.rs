@@ -13,6 +13,7 @@ use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
 use log::{debug, info};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
+use vault::secrets::Aws;
 use vault::{self, Client, Vault};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -98,6 +99,30 @@ fn read_gcp_access_token<S: AsRef<str>>(client: &Client, path: S) -> Result<GcpA
     Ok(data)
 }
 
+fn read_aws_credentials<S: AsRef<str>>(
+    client: &Client,
+    path: S,
+    request: &vault::secrets::aws::CredentialsRequest,
+) -> Result<vault::secrets::aws::Credentials, Error> {
+    let path_parts: Vec<_> = path.as_ref().split('/').collect();
+    if path_parts.len() != 3 {
+        Err(Error::InvalidVaultPath)?;
+    }
+    if path_parts[1] != "creds" {
+        Err(Error::InvalidVaultPath)?;
+    }
+
+    let mount_point = path_parts[0];
+    let role = path_parts[2];
+
+    Ok(Aws::generate_credentials(
+        &client,
+        mount_point,
+        role,
+        request,
+    )?)
+}
+
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
     App::new(crate_name!())
         .version(crate_version!())
@@ -152,6 +177,21 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true)
                 .default_value("-"),
+        )
+        .arg(
+            Arg::with_name("eks_role_arn")
+                .long("--eks-role-arn")
+                .help(
+                    "The ARN of the role to assume if the AWS Secrets Engine role is configured \
+                     with multiple roles",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("eks_ttl")
+                .long("--eks-ttl")
+                .help("Specifies the TTL for the use of the STS token.")
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("type")
@@ -217,7 +257,15 @@ fn main() -> Result<(), Error> {
             let gcp_access_token = read_gcp_access_token(&client, path)?;
             serde_json::to_string_pretty(&gcp_access_token)?
         }
-        CredentialType::Eks => unimplemented!(),
+        CredentialType::Eks => {
+            info!("Requesting AWS Credentials from {}", path);
+            let request = vault::secrets::aws::CredentialsRequest {
+                role_arn: args.value_of("eks_role_arn").map(|s| s.to_string()),
+                ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
+            };
+            let aws_credentials = read_aws_credentials(&client, path, &request)?;
+            serde_json::to_string_pretty(&aws_credentials)?
+        }
     };
 
     let output = get_writer(output)?;
