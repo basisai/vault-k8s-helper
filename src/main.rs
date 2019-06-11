@@ -1,5 +1,6 @@
 mod error;
 pub use error::Error;
+mod aws;
 
 use std::borrow::Cow;
 use std::fmt;
@@ -11,10 +12,8 @@ use std::str::FromStr;
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, ArgMatches};
 use log::{debug, info};
-use rusoto_core::credential::AwsCredentials;
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
-use vault::secrets::Aws;
 use vault::{self, Client, Vault};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -98,54 +97,6 @@ fn read_gcp_access_token<S: AsRef<str>>(client: &Client, path: S) -> Result<GcpA
     let response = client.get(path.as_ref())?;
     let data = response.data()?;
     Ok(data)
-}
-
-fn read_aws_credentials<S: AsRef<str>>(
-    client: &Client,
-    path: S,
-    request: &vault::secrets::aws::CredentialsRequest,
-) -> Result<AwsCredentials, Error> {
-    let path_parts: Vec<_> = path.as_ref().split('/').collect();
-    if path_parts.len() != 3 {
-        Err(Error::InvalidVaultPath)?;
-    }
-    if path_parts[1] != "creds" {
-        Err(Error::InvalidVaultPath)?;
-    }
-
-    let mount_point = path_parts[0];
-    let role = path_parts[2];
-
-    let creds = Aws::generate_credentials(&client, mount_point, role, request)?;
-    Ok(AwsCredentials::new(
-        creds.access_key,
-        creds.secret_key,
-        creds.security_token,
-        None,
-    ))
-}
-
-fn get_eks_token(
-    credentials: &AwsCredentials,
-    cluster: &str,
-    region: Option<&str>,
-    expires_in: Option<&str>,
-) -> Result<String, Error> {
-    let region: Option<rusoto_core::region::Region> = match region {
-        Some(r) => Some(r.parse()?),
-        None => None,
-    };
-    let expiry = match expires_in {
-        Some(expiry) => Some(std::time::Duration::from_secs(expiry.parse()?)),
-        None => None,
-    };
-    let headers = [("x-k8s-aws-id", cluster)].iter().cloned().collect();
-
-    let mut buffer = "k8s-aws-v1.".to_string();
-
-    let url = aws_auth::client::presigned_url(credentials, region, headers, expiry.as_ref());
-    base64::encode_config_buf(&url, base64::URL_SAFE_NO_PAD, &mut buffer);
-    Ok(buffer)
 }
 
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
@@ -308,13 +259,14 @@ fn main() -> Result<(), Error> {
                 role_arn: args.value_of("eks_role_arn").map(|s| s.to_string()),
                 ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
             };
-            let aws_credentials = read_aws_credentials(&client, path, &request)?;
-            get_eks_token(
+            let aws_credentials = aws::read_aws_credentials(&client, path, &request)?;
+            let token = aws::get_eks_token(
                 &aws_credentials,
                 required_arg_value(&args, "eks_cluster"),
                 args.value_of("eks_region"),
                 args.value_of("eks_expiry"),
-            )?
+            )?;
+            serde_json::to_string_pretty(&token)?
         }
     };
 
