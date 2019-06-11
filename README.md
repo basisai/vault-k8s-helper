@@ -63,8 +63,10 @@ ARGS:
 
 ### Example output
 
+#### GKE
+
 ```json
-{ "expires_at_seconds": "2019-03-01T08:09:32Z", "token": "ya29.c.<REDACTED>" }
+{ "token_expiry": "2019-03-01T08:09:32Z", "token": "ya29.c.<REDACTED>" }
 ```
 
 ## Tests
@@ -79,7 +81,9 @@ Provide the usual environment variables plus:
 
 ## Kube Config
 
-The following template for Kube Config would work well:
+The following template for Kube Config would work well.
+
+### GKE
 
 ```yaml
 apiVersion: v1
@@ -105,10 +109,10 @@ users:
             --vault-token-file=/path/to/vault/token
             --vault-address=https://vault.service.consul:8200
             --vault-ca-cert=/path/to/cert
-            gcp/token/roleset
+            gke gcp/token/roleset
 
         cmd-path: /bin/path/to/vault-gke-helper
-        expiry-key: '{.expires_at_seconds}'
+        expiry-key: '{.token_expiry}'
         token-key: '{.token}'
       name: gcp
 ```

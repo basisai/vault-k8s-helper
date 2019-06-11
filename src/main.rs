@@ -5,11 +5,12 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fs::File;
 use std::io::Read as _;
+use std::io::Write;
 use std::str::FromStr;
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
-use log::debug;
+use log::{debug, info};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 use vault::{self, Client, Vault};
@@ -37,7 +38,8 @@ impl FromStr for CredentialType {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 struct GcpAccessToken {
     #[serde(deserialize_with = "timestamp_to_iso")]
-    pub expires_at_seconds: String,
+    #[serde(rename(serialize = "token_expiry", deserialize = "expires_at_seconds"))]
+    pub expiry: String,
     pub token: String,
     #[serde(skip_serializing)]
     pub token_ttl: u64,
@@ -142,6 +144,16 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("output")
+                .long("--output")
+                .help("Path to output credentials to")
+                .long_help(
+                    "Change to path to output the credentials to. Defaults to `-` which is stdout",
+                )
+                .takes_value(true)
+                .default_value("-"),
+        )
+        .arg(
             Arg::with_name("type")
                 .help("Type of credentials to read")
                 .takes_value(true)
@@ -156,6 +168,18 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .index(2)
                 .required(true),
         )
+}
+
+fn get_writer(path: &str) -> Result<Box<Write>, Error> {
+    Ok(match path {
+        "-" => Box::new(std::io::stdout()),
+        others => Box::new(File::create(others)?),
+    })
+}
+
+fn write<W: Write>(mut writer: W, output: &str) -> Result<(), Error> {
+    write!(writer, "{}", output)?;
+    Ok(())
 }
 
 fn main() -> Result<(), Error> {
@@ -180,17 +204,24 @@ fn main() -> Result<(), Error> {
     let path = args
         .value_of("path")
         .expect("required args to be handled by clap");
+    let output = args
+        .value_of("output")
+        .expect("default value to be provided by clap");
 
     let client = Client::new(address, token, ca_cert, false)?;
     debug!("Vault Client: {:#?}", client);
 
-    match credential_type {
+    let creds = match credential_type {
         CredentialType::Gke => {
+            info!("Requesting GKE Access token from {}", path);
             let gcp_access_token = read_gcp_access_token(&client, path)?;
-            println!("{}", serde_json::to_string_pretty(&gcp_access_token)?);
+            serde_json::to_string_pretty(&gcp_access_token)?
         }
         CredentialType::Eks => unimplemented!(),
-    }
+    };
+
+    let output = get_writer(output)?;
+    write(output, &creds)?;
 
     Ok(())
 }
@@ -211,13 +242,13 @@ mod tests {
         client.get("/auth/token/lookup-self").unwrap();
     }
 
-    fn path() -> String {
+    fn gcp_path() -> String {
         env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
     }
 
     #[test]
     fn can_read_gcp_secrets() {
         let client = vault_client();
-        read_gcp_access_token(&client, path()).unwrap();
+        read_gcp_access_token(&client, gcp_path()).unwrap();
     }
 }
