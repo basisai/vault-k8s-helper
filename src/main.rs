@@ -1,63 +1,37 @@
 mod error;
 pub use error::Error;
+mod aws;
+mod gcp;
 
 use std::borrow::Cow;
-use std::fmt;
 use std::fs::File;
 use std::io::Read as _;
+use std::io::Write;
+use std::str::FromStr;
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
-use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg};
-use log::debug;
-use serde::de::{self, Deserializer, Visitor};
+use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, ArgMatches};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
-use vault::{self, Client, Vault};
+use vault::{self, Client};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-struct GcpAccessToken {
-    #[serde(deserialize_with = "timestamp_to_iso")]
-    pub expires_at_seconds: String,
-    pub token: String,
-    #[serde(skip_serializing)]
-    pub token_ttl: u64,
+enum CredentialType {
+    Gke,
+    Eks,
 }
 
-struct TimestampVisitor;
+static CRED_VARIANTS: &[&str] = &["gke", "eks"];
 
-impl<'de> Visitor<'de> for TimestampVisitor {
-    type Value = i64;
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an integer")
-    }
+impl FromStr for CredentialType {
+    type Err = Error;
 
-    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Ok(value)
-    }
-
-    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        use std::i64;
-        use std::u64;
-        if value <= i64::MAX as u64 {
-            Ok(value as i64)
-        } else {
-            Err(E::custom(format!("i64 out of range: {}", value)))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "gke" => Ok(CredentialType::Gke),
+            "eks" => Ok(CredentialType::Eks),
+            _ => Err(Error::InvalidCredentialType),
         }
     }
-}
-
-fn timestamp_to_iso<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let timestamp = deserializer.deserialize_i64(TimestampVisitor)?;
-    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc);
-    Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, true))
 }
 
 fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
@@ -69,21 +43,12 @@ fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
     Ok(buffer)
 }
 
-fn read_gcp_access_token<S: AsRef<str>>(
-    client: &Client,
-    path: S,
-) -> Result<GcpAccessToken, Error> {
-    let response = client.get(path.as_ref())?;
-    let data = response.data()?;
-    Ok(data)
-}
-
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
     App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
         .global_setting(AppSettings::NextLineHelp)
-        .about("Read Google Cloud Platform access token from Vault")
+        .about("Read access tokens from Vault to authenticate with Kubernetes")
         .arg(
             Arg::with_name("vault_address")
                 .help("Vault Address")
@@ -124,11 +89,90 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("path")
-                .help("Path to read from Vault")
+            Arg::with_name("output")
+                .long("--output")
+                .help("Output Path")
+                .long_help(
+                    "Change to path to output the credentials to. Defaults to `-` which is stdout",
+                )
                 .takes_value(true)
+                .default_value("-"),
+        )
+        .arg(
+            Arg::with_name("eks_role_arn")
+                .long("--eks-role-arn")
+                .help("AWS IAM Role ARN")
+                .long_help(
+                    "The ARN of the role to assume if the AWS Secrets Engine role is configured \
+                     with multiple roles",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("eks_ttl")
+                .long("--eks-ttl")
+                .help("STS Token TTL")
+                .long_help("Specifies the TTL for the use of the STS token.")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("eks_expiry")
+                .long("--eks-expiry")
+                .help("EKS Token Expiry")
+                .long_help(
+                    "Specifies the Expiry duration in number of seconds for the Kubernetes Token.",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("eks_cluster")
+                .long("--eks-cluster")
+                .help("EKS Cluster Name")
+                .long_help("Name of the EKS cluster. Required if type is `eks`")
+                .takes_value(true)
+                .required_if("type", "eks"),
+        )
+        .arg(
+            Arg::with_name("eks_region")
+                .long("--eks-region")
+                .help("AWS Region")
+                .long_help("Region of AWS to use. Defaults to the Global Endpoint")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("type")
+                .help("Credentials Type")
+                .long_help("Type of credentials to read")
+                .takes_value(true)
+                .possible_values(CRED_VARIANTS)
+                .index(1)
                 .required(true),
         )
+        .arg(
+            Arg::with_name("path")
+                .help("Vault Path")
+                .long_help("Path to read from Vault")
+                .takes_value(true)
+                .index(2)
+                .required(true),
+        )
+}
+
+fn required_arg_value<'a>(args: &'a ArgMatches<'a>, param: &str) -> &'a str {
+    args.value_of(param)
+        .expect("required args to be handled by clap")
+}
+
+fn get_writer(path: &str) -> Result<Box<Write>, Error> {
+    Ok(match path {
+        "-" => Box::new(std::io::stdout()),
+        others => Box::new(File::create(others)?),
+    })
+}
+
+fn write<W: Write>(mut writer: W, output: &str) -> Result<(), Error> {
+    write!(writer, "{}", output)?;
+    Ok(())
 }
 
 fn main() -> Result<(), Error> {
@@ -136,6 +180,9 @@ fn main() -> Result<(), Error> {
     let parser = make_parser();
     let args = parser.get_matches();
 
+    let credential_type: CredentialType =
+        CredentialType::from_str(required_arg_value(&args, "type"))
+            .expect("invalid values to be validated by clap");
     let token = if let Some(path) = args.value_of("vault_token_file") {
         let file = read_file(path)?;
         let token = String::from_utf8(file)?;
@@ -145,16 +192,38 @@ fn main() -> Result<(), Error> {
     };
     let address = args.value_of("vault_address");
     let ca_cert = args.value_of("vault_ca_cert");
+    let path = required_arg_value(&args, "path");
+    let output = required_arg_value(&args, "output");
 
     let client = Client::new(address, token, ca_cert, false)?;
     debug!("Vault Client: {:#?}", client);
 
-    let gcp_access_token = read_gcp_access_token(
-        &client,
-        args.value_of("path").expect("to be handled by clap"),
-    )?;
+    let creds = match credential_type {
+        CredentialType::Gke => {
+            info!("Requesting GKE Access token from {}", path);
+            let gcp_access_token = gcp::read_gcp_access_token(&client, path)?;
+            serde_json::to_string_pretty(&gcp_access_token)?
+        }
+        CredentialType::Eks => {
+            info!("Requesting AWS Credentials from {}", path);
+            let request = vault::secrets::aws::CredentialsRequest {
+                role_arn: args.value_of("eks_role_arn").map(|s| s.to_string()),
+                ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
+            };
+            let aws_credentials = aws::read_aws_credentials(&client, path, &request)?;
+            debug!("AWS Credentials: {:#?}", aws_credentials);
+            let token = aws::get_eks_token(
+                &aws_credentials,
+                required_arg_value(&args, "eks_cluster"),
+                args.value_of("eks_region"),
+                args.value_of("eks_expiry"),
+            )?;
+            serde_json::to_string_pretty(&token)?
+        }
+    };
 
-    println!("{}", serde_json::to_string_pretty(&gcp_access_token)?);
+    let output = get_writer(output)?;
+    write(output, &creds)?;
 
     Ok(())
 }
@@ -163,7 +232,7 @@ fn main() -> Result<(), Error> {
 mod tests {
     use super::*;
 
-    use std::env;
+    use vault::Vault;
 
     pub(crate) fn vault_client() -> Client {
         Client::from_environment::<&str, &str, &str>(None, None, None).unwrap()
@@ -173,15 +242,5 @@ mod tests {
     fn can_read_self_capabilities() {
         let client = vault_client();
         client.get("/auth/token/lookup-self").unwrap();
-    }
-
-    fn path() -> String {
-        env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
-    }
-
-    #[test]
-    fn can_read_gcp_secrets() {
-        let client = vault_client();
-        read_gcp_access_token(&client, path()).unwrap();
     }
 }
