@@ -1,20 +1,18 @@
 mod error;
 pub use error::Error;
 mod aws;
+mod gcp;
 
 use std::borrow::Cow;
-use std::fmt;
 use std::fs::File;
 use std::io::Read as _;
 use std::io::Write;
 use std::str::FromStr;
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
 use clap::{crate_authors, crate_name, crate_version, App, AppSettings, Arg, ArgMatches};
 use log::{debug, info};
-use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
-use vault::{self, Client, Vault};
+use vault::{self, Client};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 enum CredentialType {
@@ -36,54 +34,6 @@ impl FromStr for CredentialType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-struct GcpAccessToken {
-    #[serde(deserialize_with = "timestamp_to_iso")]
-    #[serde(rename(serialize = "token_expiry", deserialize = "expires_at_seconds"))]
-    pub expiry: String,
-    pub token: String,
-    #[serde(skip_serializing)]
-    pub token_ttl: u64,
-}
-
-fn timestamp_to_iso<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct TimestampVisitor;
-
-    impl<'de> Visitor<'de> for TimestampVisitor {
-        type Value = i64;
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("an integer")
-        }
-
-        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(value)
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            use std::i64;
-            use std::u64;
-            if value <= i64::MAX as u64 {
-                Ok(value as i64)
-            } else {
-                Err(E::custom(format!("i64 out of range: {}", value)))
-            }
-        }
-    }
-
-    let timestamp = deserializer.deserialize_i64(TimestampVisitor)?;
-    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp, 0), Utc);
-    Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, true))
-}
-
 fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
     let metadata = std::fs::metadata(&path)?;
     let size = metadata.len();
@@ -91,12 +41,6 @@ fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
     let mut buffer = Vec::with_capacity(size as usize);
     file.read_to_end(&mut buffer)?;
     Ok(buffer)
-}
-
-fn read_gcp_access_token<S: AsRef<str>>(client: &Client, path: S) -> Result<GcpAccessToken, Error> {
-    let response = client.get(path.as_ref())?;
-    let data = response.data()?;
-    Ok(data)
 }
 
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
@@ -257,7 +201,7 @@ fn main() -> Result<(), Error> {
     let creds = match credential_type {
         CredentialType::Gke => {
             info!("Requesting GKE Access token from {}", path);
-            let gcp_access_token = read_gcp_access_token(&client, path)?;
+            let gcp_access_token = gcp::read_gcp_access_token(&client, path)?;
             serde_json::to_string_pretty(&gcp_access_token)?
         }
         CredentialType::Eks => {
@@ -288,7 +232,7 @@ fn main() -> Result<(), Error> {
 mod tests {
     use super::*;
 
-    use std::env;
+    use vault::Vault;
 
     pub(crate) fn vault_client() -> Client {
         Client::from_environment::<&str, &str, &str>(None, None, None).unwrap()
@@ -298,15 +242,5 @@ mod tests {
     fn can_read_self_capabilities() {
         let client = vault_client();
         client.get("/auth/token/lookup-self").unwrap();
-    }
-
-    fn gcp_path() -> String {
-        env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
-    }
-
-    #[test]
-    fn can_read_gcp_secrets() {
-        let client = vault_client();
-        read_gcp_access_token(&client, gcp_path()).unwrap();
     }
 }
