@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use log::debug;
 use rusoto_core::credential::AwsCredentials;
 use serde::{Deserialize, Serialize};
 use vault::secrets::Aws;
@@ -38,11 +39,19 @@ pub fn read_aws_credentials<S: AsRef<str>>(
     let role = path_parts[2];
 
     let creds = Aws::generate_credentials(&client, mount_point, role, request)?;
+    debug!("AWS Credentials from Vault: {}", serde_json::to_string_pretty(&creds)?);
+
+    let expiry = if creds.data.security_token.is_some() {
+        Some(chrono::Utc::now() + chrono::Duration::seconds(creds.lease_duration as i64))
+    } else {
+        None
+    };
+
     Ok(AwsCredentials::new(
-        creds.access_key,
-        creds.secret_key,
-        creds.security_token,
-        None,
+        creds.data.access_key,
+        creds.data.secret_key,
+        creds.data.security_token,
+        expiry,
     ))
 }
 
@@ -65,6 +74,7 @@ pub fn get_eks_token(
     let mut token = "k8s-aws-v1.".to_string();
 
     let url = aws_auth::client::presigned_url(credentials, region, headers, expiry.as_ref());
+    debug!("Generated AWS Pre-signed URL: {}", url);
     base64::encode_config_buf(&url, base64::URL_SAFE_NO_PAD, &mut token);
 
     Ok(EksCredential {

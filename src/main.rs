@@ -260,6 +260,7 @@ fn main() -> Result<(), Error> {
                 ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
             };
             let aws_credentials = aws::read_aws_credentials(&client, path, &request)?;
+            debug!("AWS Credentials: {:#?}", aws_credentials);
             let token = aws::get_eks_token(
                 &aws_credentials,
                 required_arg_value(&args, "eks_cluster"),
