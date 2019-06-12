@@ -14,19 +14,6 @@ chmod +x vault-k8s-helper
 
 ## Usage
 
-### GKE
-
-You have to configure Vault's
-[Google Cloud Secrets Engine](https://www.vaultproject.io/docs/secrets/gcp/index.html) first with
-an appropriate
-[access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens).
-
-### AWS
-
-You have to configure Vault's
-[AWS Secrets Engine](https://www.vaultproject.io/docs/secrets/aws/index.html)
-with an appropriate role. Any role type should work.
-
 ```text
 Read access tokens from Vault to authenticate with Kubernetes
 
@@ -79,6 +66,33 @@ ARGS:
 
     <path>
             Path to read from Vault
+```
+
+### GKE
+
+You have to configure Vault's
+[Google Cloud Secrets Engine](https://www.vaultproject.io/docs/secrets/gcp/index.html) first with
+an appropriate
+[access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens).
+
+```bash
+VAULT_TOKEN="s.xxx" \
+VAULT_ADDR="https://vault.service.consul:8200" \
+VAULT_CACERT=/path/to/ca \
+vault-k8s-helper gke gcp/token/roleset
+```
+
+### AWS
+
+You have to configure Vault's
+[AWS Secrets Engine](https://www.vaultproject.io/docs/secrets/aws/index.html)
+with an appropriate role. Any role type should work.
+
+```bash
+VAULT_TOKEN="s.xxx" \
+VAULT_ADDR="https://vault.service.consul:8200" \
+VAULT_CACERT=/path/to/ca \
+vault-k8s-helper eks --eks-cluster my_cluster aws/creds/role
 ```
 
 ### Example output
