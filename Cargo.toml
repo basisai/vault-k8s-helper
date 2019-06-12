@@ -5,7 +5,7 @@ authors = ["Yong Wen Chua <lawliet89@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
-aws_auth = { git = "https://github.com/lawliet89/aws-auth-payload", package = "aws-auth-payload", rev = "63eaf88856b284b4864f46e578e5aabb87d352a9" }
+aws_auth = { git = "https://github.com/lawliet89/aws-auth-payload", package = "aws-auth-payload", rev = "a760bfd02bca926a9d7e5c66ed5779939dc98b29" }
 base64 = "0.10.1"
 clap = "2.33.0"
 chrono = "0.4.6"
@@ -13,7 +13,7 @@ env_logger = "0.6.1"
 failure = { version = "0.1.5", features=["backtrace"] }
 reqwest = "0.9.17"
 # rusoto_core = "0.39.0"
-rusoto_core = { git = "https://github.com/basisai/rusoto.git", rev = "5a66c42296063ff021273827f12e629ae60a4716" }
+rusoto_core = { git = "https://github.com/basisai/rusoto.git", rev = "c1965504b483d1b086844a28742778cc64467863" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
