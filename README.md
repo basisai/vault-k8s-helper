@@ -42,6 +42,15 @@ FLAGS:
 
 
 OPTIONS:
+        --eks-cluster <eks_cluster>
+            Name of the EKS cluster. Required if type is `eks`
+
+        --eks-expiry <eks_expiry>
+            Specifies the Expiry duration in number of seconds for the Kubernetes Token.
+
+        --eks-region <eks_region>
+            Region of AWS to use. Defaults to the Global Endpoint
+
         --eks-role-arn <eks_role_arn>
             The ARN of the role to assume if the AWS Secrets Engine role is configured with multiple roles
 
@@ -84,7 +93,13 @@ ARGS:
 #### EKS
 
 ```json
-
+{
+  "kind": "ExecCredential",
+  "apiVersion": "client.authentication.k8s.io/v1alpha1",
+  "spec": {},
+  "status": {
+    "token": "k8s-aws-v1.<redacted>"
+  }
 ```
 
 ## Tests
@@ -129,8 +144,43 @@ users:
             --vault-ca-cert=/path/to/cert
             gke gcp/token/roleset
 
-        cmd-path: /bin/path/to/vault-gke-helper
+        cmd-path: /bin/path/to/vault-k8s-helper
         expiry-key: '{.token_expiry}'
         token-key: '{.token}'
       name: gcp
+```
+
+### EKS
+
+```yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: <K8S-CA>
+    server: <K8S-URL>
+  name: deploy
+contexts:
+- context:
+    cluster: deploy
+    user: deploy
+  name: deploy
+current-context: deploy
+kind: Config
+preferences: {}
+users:
+- name: deploy
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1alpha1
+      args:
+      - eks
+      - --eks-cluster=bedrock
+      - --vault-token-file=/path/to/vault/token
+      - --vault-address=https://vault.service.consul:8200
+      - --vault-ca-cert=/path/to/cert
+      - aws/creds/role
+      command: /bin/path/to/vault-k8s-helper
+      env:
+      - name: AWS_PROFILE
+        value: default
 ```
