@@ -58,12 +58,12 @@ pub fn read_aws_credentials<S: AsRef<str>>(
     ))
 }
 
-pub fn get_eks_token(
+pub fn generate_presigned_url(
     credentials: &AwsCredentials,
     cluster: &str,
     region: Option<&str>,
     expires_in: Option<&str>,
-) -> Result<EksCredential, Error> {
+) -> Result<String, Error> {
     let region: Option<rusoto_core::region::Region> = match region {
         Some(r) => Some(r.parse()?),
         None => None,
@@ -73,11 +73,24 @@ pub fn get_eks_token(
         None => None,
     };
     let headers = [("x-k8s-aws-id", cluster)].iter().cloned().collect();
+    Ok(aws_auth::client::presigned_url(
+        credentials,
+        region,
+        headers,
+        expiry.as_ref(),
+    ))
+}
+
+pub fn get_eks_token(
+    credentials: &AwsCredentials,
+    cluster: &str,
+    region: Option<&str>,
+    expires_in: Option<&str>,
+) -> Result<EksCredential, Error> {
+    let url = generate_presigned_url(credentials, cluster, region, expires_in)?;
+    debug!("Generated AWS Pre-signed URL: {}", url);
 
     let mut token = "k8s-aws-v1.".to_string();
-
-    let url = aws_auth::client::presigned_url(credentials, region, headers, expiry.as_ref());
-    debug!("Generated AWS Pre-signed URL: {}", url);
     base64::encode_config_buf(&url, base64::URL_SAFE_NO_PAD, &mut token);
 
     Ok(EksCredential {
@@ -98,13 +111,29 @@ mod tests {
         env::var("AWS_PATH").expect("Provide Path to AWS role in AWS_PATH variable")
     }
 
-    #[test]
-    fn can_read_aws_secret() {
+    fn aws_credentials() -> rusoto_core::credential::AwsCredentials {
         let client = crate::tests::vault_client();
+        read_aws_credentials(&client, &aws_path(), &Default::default()).unwrap()
+    }
 
-        let aws_credentials =
-            read_aws_credentials(&client, &aws_path(), &Default::default()).unwrap();
-        debug!("AWS Credentials: {:#?}", aws_credentials);
+    #[test]
+    fn presigned_url_is_valid() {
+        let aws_credentials = aws_credentials();
+        let url = generate_presigned_url(&aws_credentials, "foobar", None, None).unwrap();
+
+        // We try to make the call to the pre-signed URL and it should succeed with 200
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&url)
+            .header("x-k8s-aws-id", "foobar")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+    }
+
+    #[test]
+    fn can_create_aws_token() {
+        let aws_credentials = aws_credentials();
         let _ = get_eks_token(&aws_credentials, "test", None, None).unwrap();
     }
 }
