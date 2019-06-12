@@ -106,11 +106,13 @@ ARGS:
 
 You have to use a real Vault server with a configured
 [Google Cloud Secrets Engine](https://www.vaultproject.io/docs/secrets/gcp/index.html)
-[access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens).
+[access token roleset](https://www.vaultproject.io/docs/secrets/gcp/index.html#access-tokens)
+and AWS Secrets Engine Role.
 
 Provide the usual environment variables plus:
 
-- `GCP_PATH` for the path to read the secrets from
+- `GCP_PATH` for the path to a GCP Secrets Engine credential endpoint for a token Roleset
+- `AWS_PATH` for the path to a AWS Secrets Engine credential endpoint for a role
 
 ## Kube Config
 

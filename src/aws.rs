@@ -39,7 +39,10 @@ pub fn read_aws_credentials<S: AsRef<str>>(
     let role = path_parts[2];
 
     let creds = Aws::generate_credentials(&client, mount_point, role, request)?;
-    debug!("AWS Credentials from Vault: {}", serde_json::to_string_pretty(&creds)?);
+    debug!(
+        "AWS Credentials from Vault: {}",
+        serde_json::to_string_pretty(&creds)?
+    );
 
     let expiry = if creds.data.security_token.is_some() {
         Some(chrono::Utc::now() + chrono::Duration::seconds(creds.lease_duration as i64))
@@ -83,4 +86,25 @@ pub fn get_eks_token(
         spec: Default::default(),
         status: EksCredentialStatus { token },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::env;
+
+    fn aws_path() -> String {
+        env::var("AWS_PATH").expect("Provide Path to AWS role in AWS_PATH variable")
+    }
+
+    #[test]
+    fn can_read_aws_secret() {
+        let client = crate::tests::vault_client();
+
+        let aws_credentials =
+            read_aws_credentials(&client, &aws_path(), &Default::default()).unwrap();
+        debug!("AWS Credentials: {:#?}", aws_credentials);
+        let _ = get_eks_token(&aws_credentials, "test", None, None).unwrap();
+    }
 }
