@@ -79,7 +79,6 @@ ARGS:
 
     <path>
             Path to read from Vault
-
 ```
 
 ### Example output

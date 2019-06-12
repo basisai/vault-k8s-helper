@@ -147,7 +147,7 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("output")
                 .long("--output")
-                .help("Path to output credentials to")
+                .help("Output Path")
                 .long_help(
                     "Change to path to output the credentials to. Defaults to `-` which is stdout",
                 )
@@ -157,7 +157,8 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("eks_role_arn")
                 .long("--eks-role-arn")
-                .help(
+                .help("AWS IAM Role ARN")
+                .long_help(
                     "The ARN of the role to assume if the AWS Secrets Engine role is configured \
                      with multiple roles",
                 )
@@ -166,13 +167,15 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("eks_ttl")
                 .long("--eks-ttl")
-                .help("Specifies the TTL for the use of the STS token.")
+                .help("STS Token TTL")
+                .long_help("Specifies the TTL for the use of the STS token.")
                 .takes_value(true),
         )
         .arg(
             Arg::with_name("eks_expiry")
                 .long("--eks-expiry")
-                .help(
+                .help("EKS Token Expiry")
+                .long_help(
                     "Specifies the Expiry duration in number of seconds for the Kubernetes Token.",
                 )
                 .takes_value(true),
@@ -180,19 +183,22 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("eks_cluster")
                 .long("--eks-cluster")
-                .help("Name of the EKS cluster. Required if type is `eks`")
+                .help("EKS Cluster Name")
+                .long_help("Name of the EKS cluster. Required if type is `eks`")
                 .takes_value(true)
                 .required_if("type", "eks"),
         )
         .arg(
             Arg::with_name("eks_region")
                 .long("--eks-region")
-                .help("Region of AWS to use. Defaults to the Global Endpoint")
+                .help("AWS Region")
+                .long_help("Region of AWS to use. Defaults to the Global Endpoint")
                 .takes_value(true),
         )
         .arg(
             Arg::with_name("type")
-                .help("Type of credentials to read")
+                .help("Credentials Type")
+                .long_help("Type of credentials to read")
                 .takes_value(true)
                 .possible_values(CRED_VARIANTS)
                 .index(1)
@@ -200,7 +206,8 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("path")
-                .help("Path to read from Vault")
+                .help("Vault Path")
+                .long_help("Path to read from Vault")
                 .takes_value(true)
                 .index(2)
                 .required(true),
