@@ -189,13 +189,10 @@ users:
       apiVersion: client.authentication.k8s.io/v1alpha1
       args:
       - eks
-      - --eks-cluster=bedrock
+      - --eks-cluster=my-cluster
       - --vault-token-file=/path/to/vault/token
       - --vault-address=https://vault.service.consul:8200
       - --vault-ca-cert=/path/to/cert
       - aws/creds/role
       command: /bin/path/to/vault-k8s-helper
-      env:
-      - name: AWS_PROFILE
-        value: default
 ```
