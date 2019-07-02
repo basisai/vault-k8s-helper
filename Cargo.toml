@@ -9,7 +9,7 @@ aws_auth = { git = "https://github.com/lawliet89/aws-auth-payload", package = "a
 base64 = "0.10.1"
 clap = "2.33.0"
 chrono = "0.4.6"
-env_logger = "0.6.1"
+env_logger = "0.6.2"
 failure = { version = "0.1.5", features=["backtrace"] }
 reqwest = "0.9.17"
 # rusoto_core = "0.39.0"
