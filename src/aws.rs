@@ -73,7 +73,7 @@ pub fn generate_presigned_url(
         None => None,
     };
     let headers = [("x-k8s-aws-id", cluster)].iter().cloned().collect();
-    Ok(aws_auth::client::presigned_url(
+    Ok(aws_auth_payload::client::presigned_url(
         credentials,
         region,
         headers,
