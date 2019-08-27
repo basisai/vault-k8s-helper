@@ -1,8 +1,8 @@
 use std::fmt;
 
 use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
-use serde::{Serialize, Deserialize};
 use serde::de::{self, Deserializer, Visitor};
+use serde::{Deserialize, Serialize};
 use vault::{self, Client, Vault};
 
 use crate::Error;
@@ -55,13 +55,14 @@ where
     Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, true))
 }
 
-
-pub fn read_gcp_access_token<S: AsRef<str>>(client: &Client, path: S) -> Result<GcpAccessToken, Error> {
+pub fn read_gcp_access_token<S: AsRef<str>>(
+    client: &Client,
+    path: S,
+) -> Result<GcpAccessToken, Error> {
     let response = client.get(path.as_ref())?;
     let data = response.data()?;
     Ok(data)
 }
-
 
 #[cfg(test)]
 mod tests {

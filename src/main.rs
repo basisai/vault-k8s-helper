@@ -163,7 +163,7 @@ fn required_arg_value<'a>(args: &'a ArgMatches<'a>, param: &str) -> &'a str {
         .expect("required args to be handled by clap")
 }
 
-fn get_writer(path: &str) -> Result<Box<Write>, Error> {
+fn get_writer(path: &str) -> Result<Box<dyn Write>, Error> {
     Ok(match path {
         "-" => Box::new(std::io::stdout()),
         others => Box::new(File::create(others)?),
