@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use log::debug;
+use log::{debug, warn};
 use rusoto_core::credential::AwsCredentials;
 use serde::{Deserialize, Serialize};
 use vault::secrets::Aws;
@@ -72,6 +72,20 @@ pub fn generate_presigned_url(
         Some(expiry) => Some(std::time::Duration::from_secs(expiry.parse()?)),
         None => None,
     };
+
+    if let Some(duration) = expiry {
+        warn!(
+            "The sts `GetCallerIdentity` request is valid for 15 minutes regardless of this \
+             parameters value after it has been signed."
+        );
+        if duration.as_secs() < 60 {
+            warn!(
+                "Setting the expiry to less than 60 seconds might cause versions of \
+                 `aws-iam-authenticator` earlier than 0.3.0 to error"
+            );
+        }
+    }
+
     let headers = [("x-k8s-aws-id", cluster)].iter().cloned().collect();
     Ok(aws_auth_payload::client::presigned_url(
         credentials,
