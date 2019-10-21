@@ -10,7 +10,7 @@ base64 = "0.10.1"
 clap = "2.33.0"
 chrono = "0.4.9"
 env_logger = "0.6.2"
-failure = { version = "0.1.5", features=["backtrace"] }
+failure = { version = "0.1.6", features=["backtrace"] }
 reqwest = "0.9.22"
 rusoto_core = "0.40.0"
 serde = { version = "1.0", features = ["derive"] }
