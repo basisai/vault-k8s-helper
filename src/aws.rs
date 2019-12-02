@@ -29,10 +29,10 @@ pub fn read_aws_credentials<S: AsRef<str>>(
 ) -> Result<AwsCredentials, Error> {
     let path_parts: Vec<_> = path.as_ref().split('/').collect();
     if path_parts.len() != 3 {
-        Err(Error::InvalidVaultPath)?;
+        return Err(Error::InvalidVaultPath);
     }
     if path_parts[1] != "creds" {
-        Err(Error::InvalidVaultPath)?;
+        return Err(Error::InvalidVaultPath);
     }
 
     let mount_point = path_parts[0];
