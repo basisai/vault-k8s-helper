@@ -55,11 +55,11 @@ where
     Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, true))
 }
 
-pub fn read_gcp_access_token<S: AsRef<str>>(
+pub async fn read_gcp_access_token<S: AsRef<str>>(
     client: &Client,
     path: S,
 ) -> Result<GcpAccessToken, Error> {
-    let response = client.get(path.as_ref())?;
+    let response = client.get(path.as_ref()).await?;
     let data = response.data()?;
     Ok(data)
 }
@@ -74,9 +74,9 @@ mod tests {
         env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
     }
 
-    #[test]
-    fn can_read_gcp_secrets() {
+    #[tokio::test(threaded_scheduler)]
+    async fn can_read_gcp_secrets() {
         let client = crate::tests::vault_client();
-        read_gcp_access_token(&client, gcp_path()).unwrap();
+        read_gcp_access_token(&client, gcp_path()).await.unwrap();
     }
 }

@@ -1,20 +1,23 @@
 [package]
 name = "vault-k8s-helper"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Yong Wen Chua <lawliet89@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
-aws-auth-payload = "0.1.1"
+# aws-auth-payload = "0.1.1"
+aws-auth-payload = { git = "https://github.com/lawliet89/aws-auth-payload.git", tag = "v0.2.0-beta0" }
 base64 = "0.11.0"
 clap = "2.33.0"
 chrono = "0.4.10"
 env_logger = "0.7.1"
 failure = { version = "0.1.6", features=["backtrace"] }
-reqwest = "0.9.22"
-rusoto_core = "0.42.0"
+reqwest = "0.10"
+# rusoto_core = "0.42.0"
+rusoto_core = { git = "https://github.com/rusoto/rusoto.git", tag = "rusoto-v0.43.0-beta.1" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 url = "2.1.0"
-vault = { git = "https://github.com/lawliet89/vault-rs", package = "vault-rs", rev = "34a6c73b900114fdfdbf0597c66f1e324e894012" }
+vault = { git = "https://github.com/lawliet89/vault-rs", package = "vault-rs", tag = "v0.2.0" }
+tokio = { version = "0.2", features=["macros", "rt-threaded"] }
