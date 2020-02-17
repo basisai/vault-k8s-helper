@@ -22,7 +22,7 @@ pub struct EksCredentialStatus {
     pub token: String,
 }
 
-pub fn read_aws_credentials<S: AsRef<str>>(
+pub async fn read_aws_credentials<S: AsRef<str>>(
     client: &Client,
     path: S,
     request: &vault::secrets::aws::CredentialsRequest,
@@ -38,7 +38,7 @@ pub fn read_aws_credentials<S: AsRef<str>>(
     let mount_point = path_parts[0];
     let role = path_parts[2];
 
-    let creds = Aws::generate_credentials(&client, mount_point, role, request)?;
+    let creds = Aws::generate_credentials(&client, mount_point, role, request).await?;
     debug!(
         "AWS Credentials from Vault: {}",
         serde_json::to_string_pretty(&creds)?
@@ -125,14 +125,16 @@ mod tests {
         env::var("AWS_PATH").expect("Provide Path to AWS role in AWS_PATH variable")
     }
 
-    fn aws_credentials() -> rusoto_core::credential::AwsCredentials {
+    async fn aws_credentials() -> rusoto_core::credential::AwsCredentials {
         let client = crate::tests::vault_client();
-        read_aws_credentials(&client, &aws_path(), &Default::default()).unwrap()
+        read_aws_credentials(&client, &aws_path(), &Default::default())
+            .await
+            .unwrap()
     }
 
-    #[test]
-    fn presigned_url_is_valid() {
-        let aws_credentials = aws_credentials();
+    #[tokio::test(threaded_scheduler)]
+    async fn presigned_url_is_valid() {
+        let aws_credentials = aws_credentials().await;
         let url = generate_presigned_url(&aws_credentials, "foobar", None, None).unwrap();
 
         // We try to make the call to the pre-signed URL and it should succeed with 200
@@ -141,13 +143,14 @@ mod tests {
             .get(&url)
             .header("x-k8s-aws-id", "foobar")
             .send()
+            .await
             .unwrap();
         assert!(response.status().is_success());
     }
 
-    #[test]
-    fn can_create_aws_token() {
-        let aws_credentials = aws_credentials();
+    #[tokio::test(threaded_scheduler)]
+    async fn can_create_aws_token() {
+        let aws_credentials = aws_credentials().await;
         let _ = get_eks_token(&aws_credentials, "test", None, None).unwrap();
     }
 }

@@ -175,7 +175,8 @@ fn write<W: Write>(mut writer: W, output: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     env_logger::init();
     let parser = make_parser();
     let args = parser.get_matches();
@@ -201,7 +202,7 @@ fn main() -> Result<(), Error> {
     let creds = match credential_type {
         CredentialType::Gke => {
             info!("Requesting GKE Access token from {}", path);
-            let gcp_access_token = gcp::read_gcp_access_token(&client, path)?;
+            let gcp_access_token = gcp::read_gcp_access_token(&client, path).await?;
             serde_json::to_string_pretty(&gcp_access_token)?
         }
         CredentialType::Eks => {
@@ -210,7 +211,7 @@ fn main() -> Result<(), Error> {
                 role_arn: args.value_of("eks_role_arn").map(|s| s.to_string()),
                 ttl: args.value_of("eks_ttl").map(|s| s.to_string()),
             };
-            let aws_credentials = aws::read_aws_credentials(&client, path, &request)?;
+            let aws_credentials = aws::read_aws_credentials(&client, path, &request).await?;
             debug!("AWS Credentials: {:#?}", aws_credentials);
             let token = aws::get_eks_token(
                 &aws_credentials,
@@ -238,9 +239,9 @@ mod tests {
         Client::from_environment::<&str, &str, &str>(None, None, None).unwrap()
     }
 
-    #[test]
-    fn can_read_self_capabilities() {
+    #[tokio::test(threaded_scheduler)]
+    async fn can_read_self_capabilities() {
         let client = vault_client();
-        client.get("/auth/token/lookup-self").unwrap();
+        client.get("/auth/token/lookup-self").await.unwrap();
     }
 }
