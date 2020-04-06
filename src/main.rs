@@ -5,7 +5,6 @@ mod gcp;
 
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::Read as _;
 use std::io::Write;
 use std::str::FromStr;
 
@@ -35,12 +34,7 @@ impl FromStr for CredentialType {
 }
 
 fn read_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, Error> {
-    let metadata = std::fs::metadata(&path)?;
-    let size = metadata.len();
-    let mut file = File::open(&path)?;
-    let mut buffer = Vec::with_capacity(size as usize);
-    file.read_to_end(&mut buffer)?;
-    Ok(buffer)
+    Ok(std::fs::read(&path)?)
 }
 
 fn make_parser<'a, 'b>() -> App<'a, 'b> {
