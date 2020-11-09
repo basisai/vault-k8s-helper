@@ -34,6 +34,8 @@ pub enum Error {
     InvalidVaultPath,
     #[fail(display = "Invalid AWS Region: {}", _0)]
     InvalidAwsRegion(#[cause] rusoto_core::region::ParseRegionError),
+    #[fail(display = "GCP Authentication error: {}", _0)]
+    GCPAuthError(gcp_auth::GCPAuthError),
 }
 
 impl From<reqwest::Error> for Error {
@@ -87,5 +89,11 @@ impl From<vault::Error> for Error {
 impl From<rusoto_core::region::ParseRegionError> for Error {
     fn from(error: rusoto_core::region::ParseRegionError) -> Self {
         Error::InvalidAwsRegion(error)
+    }
+}
+
+impl From<gcp_auth::GCPAuthError> for Error {
+    fn from(error: gcp_auth::GCPAuthError) -> Self {
+        Error::GCPAuthError(error)
     }
 }
