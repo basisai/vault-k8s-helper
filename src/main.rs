@@ -17,9 +17,10 @@ use vault::{self, Client};
 enum CredentialType {
     Gke,
     Eks,
+    Gcp,
 }
 
-static CRED_VARIANTS: &[&str] = &["gke", "eks"];
+static CRED_VARIANTS: &[&str] = &["gke", "eks", "gcp"];
 
 impl FromStr for CredentialType {
     type Err = Error;
@@ -28,6 +29,7 @@ impl FromStr for CredentialType {
         match s.to_lowercase().as_str() {
             "gke" => Ok(CredentialType::Gke),
             "eks" => Ok(CredentialType::Eks),
+            "gcp" => Ok(CredentialType::Gcp),
             _ => Err(Error::InvalidCredentialType),
         }
     }
@@ -148,7 +150,7 @@ fn make_parser<'a, 'b>() -> App<'a, 'b> {
                 .long_help("Path to read from Vault")
                 .takes_value(true)
                 .index(2)
-                .required(true),
+                .required_ifs(&[("type", "gke"), ("type", "eks")]),
         )
 }
 
@@ -169,6 +171,40 @@ fn write<W: Write>(mut writer: W, output: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn read_token<P: AsRef<std::path::Path>>(path: P) -> Result<String, Error> {
+    let file = read_file(path)?;
+    let token = String::from_utf8(file)?;
+    Ok(token)
+}
+
+fn token_helper<'a>() -> Option<Cow<'a, str>> {
+    // Try to read from Home directory, mimicking Vault CLI default token helper
+    // i.e. `~/.vault-token`
+    debug!("Trying to read Vault token from ~/.vault-token");
+    dirs::home_dir()
+        .map(|mut p| {
+            p.push(".vault-token");
+            p
+        })
+        .map(|p| read_token(p).ok())
+        .flatten()
+        .map(Cow::Owned)
+}
+
+fn get_vault_client(args: &ArgMatches<'_>) -> Result<Client, Error> {
+    let token = if let Some(path) = args.value_of("vault_token_file") {
+        debug!("Trying to read Vault token from {}", path);
+        Some(Cow::Owned(read_token(path)?))
+    } else {
+        token_helper().or_else(|| args.value_of("vault_token").map(|s| Cow::Borrowed(s)))
+    };
+    let address = args.value_of("vault_address");
+    let ca_cert = args.value_of("vault_ca_cert");
+    let client = Client::new(address, token, ca_cert, false)?;
+    debug!("Vault Client: {:#?}", client);
+    Ok(client)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     env_logger::init();
@@ -178,28 +214,19 @@ async fn main() -> Result<(), Error> {
     let credential_type: CredentialType =
         CredentialType::from_str(required_arg_value(&args, "type"))
             .expect("invalid values to be validated by clap");
-    let token = if let Some(path) = args.value_of("vault_token_file") {
-        let file = read_file(path)?;
-        let token = String::from_utf8(file)?;
-        Some(Cow::Owned(token))
-    } else {
-        args.value_of("vault_token").map(|s| Cow::Borrowed(s))
-    };
-    let address = args.value_of("vault_address");
-    let ca_cert = args.value_of("vault_ca_cert");
-    let path = required_arg_value(&args, "path");
     let output = required_arg_value(&args, "output");
-
-    let client = Client::new(address, token, ca_cert, false)?;
-    debug!("Vault Client: {:#?}", client);
 
     let creds = match credential_type {
         CredentialType::Gke => {
+            let client = get_vault_client(&args)?;
+            let path = required_arg_value(&args, "path");
             info!("Requesting GKE Access token from {}", path);
             let gcp_access_token = gcp::read_gcp_access_token(&client, path).await?;
             serde_json::to_string_pretty(&gcp_access_token)?
         }
         CredentialType::Eks => {
+            let client = get_vault_client(&args)?;
+            let path = required_arg_value(&args, "path");
             info!("Requesting AWS Credentials from {}", path);
             let request = vault::secrets::aws::CredentialsRequest {
                 role_arn: args.value_of("eks_role_arn").map(|s| s.to_string()),
@@ -214,6 +241,14 @@ async fn main() -> Result<(), Error> {
                 args.value_of("eks_expiry"),
             )?;
             serde_json::to_string_pretty(&token)?
+        }
+        CredentialType::Gcp => {
+            info!("Using Google SDK authentication flow");
+            let auth = gcp_auth::init().await?;
+            let token = auth
+                .get_token(&["https://www.googleapis.com/auth/cloud-platform"])
+                .await?;
+            serde_json::to_string_pretty(&gcp::GcpAccessToken::from_gcp_auth(&token))?
         }
     };
 

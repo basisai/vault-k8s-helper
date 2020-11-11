@@ -1,6 +1,6 @@
 use std::fmt;
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Duration, NaiveDateTime, SecondsFormat, Utc};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 use vault::{self, Client, Vault};
@@ -15,6 +15,20 @@ pub struct GcpAccessToken {
     pub token: String,
     #[serde(skip_serializing)]
     pub token_ttl: u64,
+}
+
+impl GcpAccessToken {
+    pub(crate) fn from_gcp_auth(token: &gcp_auth::Token) -> Self {
+        let expiry = token.expires_at().unwrap_or_else(|| {
+            // No expiry, let's just add now + 50 mins
+            Utc::now() + Duration::minutes(50)
+        });
+        Self {
+            token: token.as_str().to_string(),
+            expiry: expiry.to_rfc3339_opts(SecondsFormat::Secs, true),
+            token_ttl: (expiry - Utc::now()).num_seconds().abs() as u64,
+        }
+    }
 }
 
 fn timestamp_to_iso<'de, D>(deserializer: D) -> Result<String, D::Error>
