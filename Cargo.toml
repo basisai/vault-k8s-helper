@@ -10,7 +10,7 @@ base64 = "0.13.0"
 clap = "2.33.3"
 chrono = "0.4.19"
 dirs = "3.0.1"
-env_logger = "0.8.2"
+env_logger = "0.8.3"
 failure = { version = "0.1.8", features=["backtrace"] }
 gcp_auth = "0.1.6"
 reqwest = "0.11"
