@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms)]
+
 mod error;
 pub use error::Error;
 mod aws;
