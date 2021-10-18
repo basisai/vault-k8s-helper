@@ -19,6 +19,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Setup
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: ${{ matrix.target }}
+          override: true
       - name: Build
         uses: actions-rs/cargo@v1
         with:
