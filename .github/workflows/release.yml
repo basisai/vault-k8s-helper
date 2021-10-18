@@ -31,4 +31,3 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: vault-k8s-helper-${{ matrix.target }}
-          token: ${{ secrets.GITHUB_RELEASE_TOKEN }}
