@@ -198,7 +198,7 @@ fn get_vault_client(args: &ArgMatches<'_>) -> Result<Client, Error> {
         debug!("Trying to read Vault token from {}", path);
         Some(Cow::Owned(read_token(path)?))
     } else {
-        token_helper().or_else(|| args.value_of("vault_token").map(|s| Cow::Borrowed(s)))
+        token_helper().or_else(|| args.value_of("vault_token").map(Cow::Borrowed))
     };
     let address = args.value_of("vault_address");
     let ca_cert = args.value_of("vault_ca_cert");
