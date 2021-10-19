@@ -270,7 +270,7 @@ mod tests {
         Client::from_environment::<&str, &str, &str>(None, None, None).unwrap()
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test(flavor = "multi_thread")]
     async fn can_read_self_capabilities() {
         let client = vault_client();
         client.get("/auth/token/lookup-self").await.unwrap();
