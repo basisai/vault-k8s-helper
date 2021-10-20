@@ -38,7 +38,7 @@ jobs:
           target: ${{ matrix.compile.target }}
           override: true
       - name: Configure ${{ matrix.compile.name }}
-        if: ${{ matrix.compile.os == "ubuntu-latest" }}
+        if: ${{ matrix.compile.os == 'ubuntu-latest' }}
         run: |
           # Ref: https://github.com/napi-rs/node-rs/blob/main/.cargo/config.toml
           sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
