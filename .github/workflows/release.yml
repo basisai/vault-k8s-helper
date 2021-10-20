@@ -9,13 +9,23 @@ jobs:
   release:
     strategy:
       matrix:
-        target:
-          # - aarch64-apple-darwin
-          - aarch64-unknown-linux-gnu
-          # - x86_64-apple-darwin
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-    runs-on: ubuntu-latest
+        compile:
+          - name: Alpine (x86_64)
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - name: Ubuntu (x86_64)
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - name: Ubuntu (arm64)
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - name: MacOS (x86_64)
+            os: macOS-latest
+            target: x86_64-apple-darwin
+          - name: MacOS (arm64)
+            os: macOS-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.compile.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -24,9 +34,10 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: ${{ matrix.target }}
+          target: ${{ matrix.compile.target }}
           override: true
-      - name: Configure gcc
+      - name: Configure ${{ matrix.compile.name }}
+        if: ${{ matrix.compile.os == 'ubuntu-latest' }}
         run: |
           # Ref: https://github.com/napi-rs/node-rs/blob/main/.cargo/config.toml
           sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
@@ -36,11 +47,11 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target ${{ matrix.target }} --features vendored -v
+          args: --release --target ${{ matrix.compile.target }} --features vendored -v
       - name: Rename
-        run: mv target/${{ matrix.target }}/release/vault-k8s-helper vault-k8s-helper-${{ matrix.target }}
+        run: mv target/${{ matrix.compile.target }}/release/vault-k8s-helper vault-k8s-helper-${{ matrix.compile.target }}
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: vault-k8s-helper-${{ matrix.target }}
+          files: vault-k8s-helper-${{ matrix.compile.target }}
