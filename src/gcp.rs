@@ -88,7 +88,7 @@ mod tests {
         env::var("GCP_PATH").expect("Provide Path to GCP role in GCP_PATH variable")
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test(flavor = "multi_thread")]
     async fn can_read_gcp_secrets() {
         let client = crate::tests::vault_client();
         read_gcp_access_token(&client, gcp_path()).await.unwrap();

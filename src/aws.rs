@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use log::{debug, warn};
-use rusoto_core::credential::AwsCredentials;
+use rusoto_credential::AwsCredentials;
 use serde::{Deserialize, Serialize};
 use vault::secrets::Aws;
 use vault::{self, Client};
@@ -132,7 +132,7 @@ mod tests {
             .unwrap()
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test(flavor = "multi_thread")]
     async fn presigned_url_is_valid() {
         let aws_credentials = aws_credentials().await;
         let url = generate_presigned_url(&aws_credentials, "foobar", None, None).unwrap();
@@ -148,7 +148,7 @@ mod tests {
         assert!(response.status().is_success());
     }
 
-    #[tokio::test(threaded_scheduler)]
+    #[tokio::test(flavor = "multi_thread")]
     async fn can_create_aws_token() {
         let aws_credentials = aws_credentials().await;
         let _ = get_eks_token(&aws_credentials, "test", None, None).unwrap();
