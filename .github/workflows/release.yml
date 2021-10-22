@@ -42,10 +42,14 @@ jobs:
       - name: Configure ${{ matrix.compile.name }}
         if: ${{ matrix.compile.os == 'ubuntu-latest' }}
         run: |
-          # Ref: https://github.com/napi-rs/node-rs/blob/main/.cargo/config.toml
           sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+          # Ref: https://github.com/napi-rs/node-rs/blob/main/.cargo/config.toml
           echo '[target.aarch64-unknown-linux-gnu]' > ~/.cargo/config.toml
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          # Ref: https://github.com/rust-lang/rust/issues/46651#issuecomment-433611633
+          echo '[target.aarch64-unknown-linux-musl]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          echo 'rustflags = [ "-C", "target-feature=+crt-static", "-C", "link-arg=-lgcc" ]' >> ~/.cargo/config.toml
       - name: Build
         uses: actions-rs/cargo@v1
         with:
