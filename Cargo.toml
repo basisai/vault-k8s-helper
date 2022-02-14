@@ -12,7 +12,7 @@ chrono = "0.4"
 dirs = "4.0"
 env_logger = "0.9"
 failure = { version = "0.1", features=["backtrace"] }
-gcp_auth = "0.5"
+gcp_auth = "0.7"
 reqwest = "0.11"
 rusoto_core = "0.47"
 rusoto_credential = "0.47"
