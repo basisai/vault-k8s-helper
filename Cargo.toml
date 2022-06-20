@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 aws-auth-payload = "0.3"
 base64 = "0.13"
-clap = "2.33"
+clap = "3.2"
 chrono = "0.4"
 dirs = "4.0"
 env_logger = "0.9"
